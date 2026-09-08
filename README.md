@@ -56,6 +56,13 @@ API key (no Azure OIDC, no `ANTHROPIC_API_KEY`).
 3. Actions → **E2E + AI Triage** → *Run workflow*, and put a scenario in the
    `break` input. Or open a PR that genuinely breaks something.
 
+The workflow passes `github_token: ${{ github.token }}` to the action, which
+skips the Claude Code GitHub App token exchange — without it the step 401s with
+"Claude Code is not installed on this repository". Installing the
+[Claude Code GitHub App](https://github.com/apps/claude) instead of passing the
+token also works, and is the better choice if you later want `@claude` mentions
+or agent-authored commits.
+
 The workflow:
 
 1. runs Playwright with `continue-on-error`, JSON reporter → `test-results/report.json`
