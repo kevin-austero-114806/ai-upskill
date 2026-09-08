@@ -70,11 +70,36 @@ jobs:
             cat triage-input.md >> "$GITHUB_STEP_SUMMARY" || true
           fi
 
-      - name: Comment verdict on PR
-        if: steps.tests.outcome == 'failure' && github.event_name == 'pull_request' && hashFiles('triage-verdict.md') != ''
+      - name: Comment on PR
+        if: steps.tests.outcome == 'failure' && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh pr comment "${{ github.event.pull_request.number }}" --body-file triage-verdict.md
+          TRIAGE_OUTCOME: ${{ steps.triage.outcome }}
+        run: |
+          if [ -s triage-verdict.md ]; then
+            cp triage-verdict.md comment-body.md
+          else
+            {
+              echo "## AI Test Failure Triage — no verdict produced"
+              echo
+              echo "The triage step reported outcome \`$TRIAGE_OUTCOME\` but wrote no"
+              echo "\`triage-verdict.md\`. Diagnostics:"
+              echo
+              echo '```'
+              echo "workspace root:"
+              ls -la | sed 's/^/  /'
+              echo '```'
+              echo
+              echo "### Raw failure input"
+              echo
+              if [ -s triage-input.md ]; then
+                cat triage-input.md
+              else
+                echo "\`triage-input.md\` is missing or empty."
+              fi
+            } > comment-body.md
+          fi
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
 
       - name: Upload artifacts
         if: always()
