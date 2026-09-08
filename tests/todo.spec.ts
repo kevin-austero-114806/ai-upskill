@@ -22,7 +22,7 @@ test('adds a todo', async ({ page }) => {
 });
 
 test('add button is labelled correctly', async ({ page }) => {
-  await expect(page.getByRole('button', { name: 'Add todo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add task' })).toBeVisible();
 });
 
 test('summary counts only completed todos', async ({ page }) => {
