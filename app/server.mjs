@@ -31,7 +31,6 @@ app.post('/api/todos/:id/toggle', (req, res) => {
   const todo = todos.find((t) => t.id === Number(req.params.id));
   if (!todo) return res.status(404).json({ error: 'not found' });
   todo.done = !todo.done;
-  res.json(todo);
 });
 
 app.post('/api/reset', (_req, res) => {
