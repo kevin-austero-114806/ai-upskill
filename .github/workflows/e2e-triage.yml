@@ -69,23 +69,9 @@ jobs:
           ANTHROPIC_FOUNDRY_API_KEY: ${{ secrets.ANTHROPIC_FOUNDRY_API_KEY }}
           ANTHROPIC_FOUNDRY_RESOURCE: ${{ vars.ANTHROPIC_FOUNDRY_RESOURCE }}
 
-      - name: Publish verdict to job summary
+      - name: Build result comment
         if: steps.tests.outcome == 'failure'
-        run: |
-          if [ -f triage-verdict.md ]; then
-            cat triage-verdict.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "## AI Test Failure Triage" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Triage produced no verdict (step outcome: \`${{ steps.triage.outcome }}\`). Raw failure input:" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            cat triage-input.md >> "$GITHUB_STEP_SUMMARY" || true
-          fi
-
-      - name: Comment on PR
-        if: steps.tests.outcome == 'failure' && github.event_name == 'pull_request'
         env:
-          GH_TOKEN: ${{ github.token }}
           TRIAGE_OUTCOME: ${{ steps.triage.outcome }}
         run: |
           if [ -s triage-verdict.md ]; then
@@ -111,7 +97,21 @@ jobs:
               fi
             } > comment-body.md
           fi
-          gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
+          cat comment-body.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on PR
+        if: steps.tests.outcome == 'failure' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
+
+      # No PR to comment on for a dispatch run, so attach the verdict to the
+      # commit — the job summary is not reachable through the REST API.
+      - name: Comment on commit
+        if: steps.tests.outcome == 'failure' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -f body="$(cat comment-body.md)" --jq .html_url
 
       - name: Upload artifacts
         if: always()
