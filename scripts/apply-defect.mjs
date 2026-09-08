@@ -21,13 +21,24 @@ const RECIPES = {
     replace: `await expect(page.getByRole('button', { name: 'Add task' })).toBeVisible();`,
   },
   flaky: {
-    file: 'app/server.mjs',
-    find: `app.get('/api/todos', (_req, res) => {
-  res.json({ todos, summary: summarize(todos) });
+    file: 'tests/todo.spec.ts',
+    find: `test('summary survives a reload', async ({ page }) => {
+  await addTodo(page, 'buy milk');
+  await page.reload();
+  await expect(page.getByTestId('summary')).toHaveText('0 of 1 done');
 });`,
-    replace: `app.get('/api/todos', async (_req, res) => {
-  await new Promise((r) => setTimeout(r, Math.random() * 4000));
-  res.json({ todos, summary: summarize(todos) });
+    replace: `test('summary survives a reload', async ({ page }) => {
+  await addTodo(page, 'buy milk');
+  await page.reload();
+  await expect(page.getByTestId('summary')).toHaveText('0 of 1 done');
+});
+
+test('generated ids land on even boundaries', async () => {
+  const sample = () => Math.floor(Math.random() * 1000);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
 });`,
   },
   timeout: {
