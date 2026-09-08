@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Todo</title>
+  <style>
+    body { font: 16px system-ui, sans-serif; max-width: 34rem; margin: 3rem auto; padding: 0 1rem; }
+    form { display: flex; gap: .5rem; }
+    input { flex: 1; padding: .5rem; }
+    button { padding: .5rem .9rem; }
+    ul { list-style: none; padding: 0; }
+    li { display: flex; align-items: center; gap: .5rem; padding: .4rem 0; border-bottom: 1px solid #eee; }
+    li[data-done="true"] .text { text-decoration: line-through; opacity: .6; }
+  </style>
+</head>
+<body>
+  <h1>Todo</h1>
+  <form id="add-form">
+    <input id="new-todo" placeholder="What needs doing?" aria-label="New todo" />
+    <button type="submit">Add todo</button>
+  </form>
+  <p data-testid="summary"></p>
+  <ul data-testid="list"></ul>
+
+  <script>
+    const list = document.querySelector('[data-testid="list"]');
+    const summary = document.querySelector('[data-testid="summary"]');
+
+    async function render() {
+      const res = await fetch('/api/todos');
+      const { todos, summary: text } = await res.json();
+      summary.textContent = text;
+      list.replaceChildren(
+        ...todos.map((t) => {
+          const li = document.createElement('li');
+          li.dataset.testid = 'todo';
+          li.dataset.done = String(t.done);
+          const btn = document.createElement('button');
+          btn.textContent = t.done ? 'Undo' : 'Done';
+          btn.dataset.testid = 'toggle';
+          btn.onclick = async () => {
+            await fetch(`/api/todos/${t.id}/toggle`, { method: 'POST' });
+            await render();
+          };
+          const span = document.createElement('span');
+          span.className = 'text';
+          span.textContent = t.text;
+          li.append(btn, span);
+          return li;
+        })
+      );
+    }
+
+    document.querySelector('#add-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.querySelector('#new-todo');
+      const text = input.value.trim();
+      if (!text) return;
+      await fetch('/api/todos', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      input.value = '';
+      await render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

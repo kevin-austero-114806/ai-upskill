@@ -1,0 +1,90 @@
+name: E2E + AI Triage
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      break:
+        description: 'Defects to inject (comma-separated): product-bug, test-bug, flaky, timeout, infra'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+  id-token: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      BREAK: ${{ github.event.inputs.break || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        id: tests
+        continue-on-error: true
+        run: npx playwright test
+
+      - name: Condense failure report
+        if: steps.tests.outcome == 'failure'
+        run: node scripts/condense-report.mjs
+
+      - name: AI triage
+        if: steps.tests.outcome == 'failure'
+        id: triage
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Follow the instructions in .github/triage-prompt.md exactly.
+          claude_args: |
+            --max-turns 20
+            --allowedTools Read,Grep,Glob,Write
+
+      - name: Publish verdict to job summary
+        if: steps.tests.outcome == 'failure'
+        run: |
+          if [ -f triage-verdict.md ]; then
+            cat triage-verdict.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## AI Test Failure Triage" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Triage produced no verdict (step outcome: \`${{ steps.triage.outcome }}\`). Raw failure input:" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat triage-input.md >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
+      - name: Comment verdict on PR
+        if: steps.tests.outcome == 'failure' && github.event_name == 'pull_request' && hashFiles('triage-verdict.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment "${{ github.event.pull_request.number }}" --body-file triage-verdict.md
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results${{ github.run_attempt }}
+          path: |
+            test-results/
+            playwright-report/
+            triage-input.md
+            triage-verdict.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Fail the job if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: exit 1

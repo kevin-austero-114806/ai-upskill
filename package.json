@@ -1,0 +1,17 @@
+{
+  "name": "ai-upskill-triage-harness",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Breakable Node + Playwright app for exercising an AI test failure triage agent in CI",
+  "scripts": {
+    "start": "node app/server.mjs",
+    "test": "playwright test",
+    "condense": "node scripts/condense-report.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  }
+}
