@@ -26,7 +26,7 @@ const RECIPES = {
   res.json({ todos, summary: summarize(todos) });
 });`,
     replace: `app.get('/api/todos', async (_req, res) => {
-  await new Promise((r) => setTimeout(r, Math.random() * 1500));
+  await new Promise((r) => setTimeout(r, Math.random() * 4000));
   res.json({ todos, summary: summarize(todos) });
 });`,
   },

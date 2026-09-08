@@ -36,11 +36,17 @@ disturbs your other working-tree changes.
 | *(none)* | — | suite passes |
 | `product-bug` | `summarize()` counts outstanding todos while the wording still says "done" | **product-bug** → `app/server.mjs` |
 | `test-bug` | spec expects the label "Add task"; the app says "Add todo" | **test-bug** → `tests/todo.spec.ts` |
-| `flaky` | `GET /api/todos` sleeps 0–1500ms against a 700ms assertion budget | **flaky** |
+| `flaky` | `GET /api/todos` sleeps 0–4000ms against a 700ms assertion budget | **flaky** |
 | `timeout` | toggle mutates state and never sends a response | **timeout / product-bug** (hung request) |
 | `infra` | a missing `DATABASE_URL` check exits 1 on boot | **infra** — suite never ran |
 
 That table is your answer key. Run a scenario, read the agent's verdict, compare.
+
+`flaky` is the one scenario that is genuinely nondeterministic — it is simulating
+real flakiness, after all. With `retries: 2`, roughly five in six runs produce
+timing-shaped failure input (about a third of those with the classic
+fail-then-pass signature); the rest pass outright and are not triaged at all.
+Re-run it if you get a green one.
 
 ## Running the agent
 
@@ -110,7 +116,7 @@ source distorts the result.
 app/server.mjs          Express server (no defect logic)
 app/public/index.html   UI
 tests/todo.spec.ts      6 specs
-playwright.config.ts    boots the server, 1 retry, JSON+HTML reporters
+playwright.config.ts    boots the server, 2 retries, JSON+HTML reporters
 scripts/apply-defect.mjs      injects/restores defects
 scripts/condense-report.mjs
 .github/triage-prompt.md
