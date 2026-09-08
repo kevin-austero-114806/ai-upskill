@@ -13,6 +13,9 @@ permissions:
   contents: read
   pull-requests: write
   actions: read
+  # Required by claude-code-action itself: it exchanges an OIDC token for its
+  # GitHub App token. Needed even with API-key model auth.
+  id-token: write
 
 jobs:
   e2e:
