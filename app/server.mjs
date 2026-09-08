@@ -23,8 +23,9 @@ let nextId = 1;
 let todos = [];
 
 function summarize(list) {
-  const done = breaks.has('product-bug') ? list.length : list.filter((t) => t.done).length;
-  return `${done} of ${list.length} done`;
+  if (breaks.has('product-bug')) return `${list.length} of ${list.length} done`;
+  const remaining = list.filter((t) => !t.done).length;
+  return `${remaining} of ${list.length} done`;
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
