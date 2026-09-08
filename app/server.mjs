@@ -15,8 +15,7 @@ function summarize(list) {
   return `${done} of ${list.length} done`;
 }
 
-app.get('/api/todos', async (_req, res) => {
-  await new Promise((r) => setTimeout(r, Math.random() * 4000));
+app.get('/api/todos', (_req, res) => {
   res.json({ todos, summary: summarize(todos) });
 });
 
