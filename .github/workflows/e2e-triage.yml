@@ -43,12 +43,31 @@ jobs:
         continue-on-error: true
         run: npx playwright test
 
+      # Playwright exits 0 when a test fails and then passes on retry, so a
+      # flaky run is "green" — triage it anyway, that is the signal we want.
+      - name: Decide whether to triage
+        id: gate
+        run: |
+          if [ "${{ steps.tests.outcome }}" = "failure" ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "reason=tests failed" >> "$GITHUB_OUTPUT"
+          else
+            flaky=$(node -e "let s={};try{s=JSON.parse(require('fs').readFileSync('test-results/report.json','utf8')).stats||{}}catch(e){};process.stdout.write(String(s.flaky||0))")
+            if [ "$flaky" -gt 0 ]; then
+              echo "needed=true" >> "$GITHUB_OUTPUT"
+              echo "reason=$flaky flaky test(s)" >> "$GITHUB_OUTPUT"
+            else
+              echo "needed=false" >> "$GITHUB_OUTPUT"
+              echo "reason=clean run" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Condense failure report
-        if: steps.tests.outcome == 'failure'
+        if: steps.gate.outputs.needed == 'true'
         run: node scripts/condense-report.mjs
 
       - name: AI triage
-        if: steps.tests.outcome == 'failure'
+        if: steps.gate.outputs.needed == 'true'
         id: triage
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
@@ -70,12 +89,17 @@ jobs:
           ANTHROPIC_FOUNDRY_RESOURCE: ${{ vars.ANTHROPIC_FOUNDRY_RESOURCE }}
 
       - name: Build result comment
-        if: steps.tests.outcome == 'failure'
+        if: steps.gate.outputs.needed == 'true'
         env:
           TRIAGE_OUTCOME: ${{ steps.triage.outcome }}
+          GATE_REASON: ${{ steps.gate.outputs.reason }}
         run: |
           if [ -s triage-verdict.md ]; then
             cp triage-verdict.md comment-body.md
+            printf '
+---
+Triage ran because: %s
+' "$GATE_REASON" >> comment-body.md
           else
             {
               echo "## AI Test Failure Triage — no verdict produced"
@@ -100,7 +124,7 @@ jobs:
           cat comment-body.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment on PR
-        if: steps.tests.outcome == 'failure' && github.event_name == 'pull_request'
+        if: steps.gate.outputs.needed == 'true' && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
@@ -108,7 +132,7 @@ jobs:
       # No PR to comment on for a dispatch run, so attach the verdict to the
       # commit — the job summary is not reachable through the REST API.
       - name: Comment on commit
-        if: steps.tests.outcome == 'failure' && github.event_name != 'pull_request'
+        if: steps.gate.outputs.needed == 'true' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api --method POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -f body="$(cat comment-body.md)" --jq .html_url
