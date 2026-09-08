@@ -13,7 +13,6 @@ permissions:
   contents: read
   pull-requests: write
   actions: read
-  id-token: write
 
 jobs:
   e2e:
@@ -46,12 +45,17 @@ jobs:
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_foundry: "true"
           prompt: |
             Follow the instructions in .github/triage-prompt.md exactly.
           claude_args: |
+            --model ${{ vars.CLAUDE_MODEL || 'claude-opus-4-8' }}
             --max-turns 20
             --allowedTools Read,Grep,Glob,Write
+        env:
+          CLAUDE_CODE_USE_FOUNDRY: 1
+          ANTHROPIC_FOUNDRY_API_KEY: ${{ secrets.ANTHROPIC_FOUNDRY_API_KEY }}
+          ANTHROPIC_FOUNDRY_RESOURCE: ${{ vars.ANTHROPIC_FOUNDRY_RESOURCE }}
 
       - name: Publish verdict to job summary
         if: steps.tests.outcome == 'failure'

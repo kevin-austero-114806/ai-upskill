@@ -35,8 +35,25 @@ That table is your answer key. Run a scenario, read the agent's verdict, compare
 
 ## Running the agent
 
-1. Add `ANTHROPIC_API_KEY` to the repo's Actions secrets.
-2. Actions → **E2E + AI Triage** → *Run workflow*, and put a scenario in the
+The agent runs on Claude via **Microsoft Foundry**, authenticated with a Foundry
+API key (no Azure OIDC, no `ANTHROPIC_API_KEY`).
+
+1. In the [Foundry portal](https://ai.azure.com/), open your resource →
+   **Endpoints and keys** → copy the **API Key**, and note the resource name and
+   your Claude deployment names.
+2. In the repo, under Settings → Secrets and variables → Actions:
+
+   | Kind | Name | Value |
+   |---|---|---|
+   | Secret | `ANTHROPIC_FOUNDRY_API_KEY` | the Foundry API key |
+   | Variable | `ANTHROPIC_FOUNDRY_RESOURCE` | the resource name (the `{resource}` in `https://{resource}.services.ai.azure.com`) |
+   | Variable | `CLAUDE_MODEL` | your Claude deployment name, e.g. `claude-opus-4-8` |
+
+   `CLAUDE_MODEL` is not optional in practice. On Foundry the `opus`/`sonnet`
+   aliases resolve to Claude Code's built-in default (Opus 4.6) and there is no
+   startup model check, so if that deployment doesn't exist in your resource the
+   run fails on the first request. Pin it to a deployment you actually have.
+3. Actions → **E2E + AI Triage** → *Run workflow*, and put a scenario in the
    `break` input. Or open a PR that genuinely breaks something.
 
 The workflow:
