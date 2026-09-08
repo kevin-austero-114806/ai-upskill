@@ -15,21 +15,30 @@ npm test          # all green
 
 ## Breaking things on purpose
 
-`BREAK` is a comma-separated env var read by both the server and the specs.
+`scripts/apply-defect.mjs` edits the working tree to introduce a real defect,
+then puts it back:
 
 ```bash
-BREAK=product-bug npm test
-BREAK=flaky,test-bug npm test
+npm run break product-bug     # edit app/server.mjs
+npm test                      # watch it fail
+npm run break -- --reset      # restore
+
+npm run break flaky,test-bug  # several at once
 ```
 
-| `BREAK` value | Injected defect | Correct verdict |
+The app and specs contain no defect switchboard — nothing conditional on an env
+var — so the failing code the agent reads looks like an ordinary mistake. Reset
+restores from a backup under `.defect-backup/`, not from git, so it never
+disturbs your other working-tree changes.
+
+| Defect | What the script changes | Correct verdict |
 |---|---|---|
-| *(unset)* | — | suite passes |
-| `product-bug` | `summary` counts every todo as done | **product-bug** → `app/server.mjs` |
+| *(none)* | — | suite passes |
+| `product-bug` | `summarize()` counts outstanding todos while the wording still says "done" | **product-bug** → `app/server.mjs` |
 | `test-bug` | spec expects the label "Add task"; the app says "Add todo" | **test-bug** → `tests/todo.spec.ts` |
 | `flaky` | `GET /api/todos` sleeps 0–1500ms against a 700ms assertion budget | **flaky** |
-| `timeout` | toggle endpoint accepts the request and never responds | **timeout / product-bug** (hung request) |
-| `infra` | server exits 1 on boot | **infra** — suite never ran |
+| `timeout` | toggle mutates state and never sends a response | **timeout / product-bug** (hung request) |
+| `infra` | a missing `DATABASE_URL` check exits 1 on boot | **infra** — suite never ran |
 
 That table is your answer key. Run a scenario, read the agent's verdict, compare.
 
@@ -54,7 +63,8 @@ API key (no Azure OIDC, no `ANTHROPIC_API_KEY`).
    startup model check, so if that deployment doesn't exist in your resource the
    run fails on the first request. Pin it to a deployment you actually have.
 3. Actions → **E2E + AI Triage** → *Run workflow*, and put a scenario in the
-   `break` input. Or open a PR that genuinely breaks something.
+   `break` input — the workflow applies it with `apply-defect.mjs` after
+   checkout. Or open a PR that genuinely breaks something.
 
 The workflow passes `github_token: ${{ github.token }}` to the action, which
 skips the Claude Code GitHub App token exchange — without it the step 401s with
@@ -83,18 +93,25 @@ the same scenario to compare verdicts. To iterate without burning CI runs, run a
 scenario locally, `node scripts/condense-report.mjs`, then hand the resulting
 `triage-input.md` to Claude Code with the same prompt.
 
-**Known limitation:** the agent can read the `BREAK` branches in `app/server.mjs`
-and `tests/todo.spec.ts`, so a determined agent can find the seams. It still has
-to map each failure to the right cause, but if you want a leak-free evaluation,
-commit real defects on scenario branches instead of using the switchboard.
+**Known limitation:** `scripts/apply-defect.mjs` still holds the recipes, so an
+agent that goes looking could read the answers there. Nothing points it at that
+file — the failing code explains itself — but if you want a guaranteed leak-free
+evaluation, commit real defects on scenario branches instead.
+
+This mattered in practice. The first graded run used an env-var switchboard
+inside `app/server.mjs`, and the agent classified the failure correctly but
+blamed the `BREAK` branch it found nearby — a branch that wasn't even executing
+— and proposed a fix that would have changed nothing. Defect-shaped code in the
+source distorts the result.
 
 ## Layout
 
 ```
-app/server.mjs          Express server + defect injection
+app/server.mjs          Express server (no defect logic)
 app/public/index.html   UI
 tests/todo.spec.ts      6 specs
 playwright.config.ts    boots the server, 1 retry, JSON+HTML reporters
+scripts/apply-defect.mjs      injects/restores defects
 scripts/condense-report.mjs
 .github/triage-prompt.md
 .github/workflows/e2e-triage.yml

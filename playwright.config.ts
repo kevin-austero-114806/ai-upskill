@@ -22,6 +22,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/todos`,
     reuseExistingServer: !process.env.CI,
     timeout: 20_000,
-    env: { PORT: String(PORT), BREAK: process.env.BREAK ?? '' },
+    env: { PORT: String(PORT) },
   },
 });

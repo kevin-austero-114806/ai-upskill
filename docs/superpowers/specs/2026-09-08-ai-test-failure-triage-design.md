@@ -12,8 +12,8 @@ triage quality can be graded.
 
 ## Success criteria
 
-- `npm test` passes with no `BREAK` flag set.
-- Each `BREAK` value produces exactly the failure kind named in the table below.
+- `npm test` passes on a clean tree.
+- Each defect name produces exactly the failure kind named in the table below.
 - On a failing PR, the agent posts a single comment classifying every failure.
 - The agent's classification can be compared against the ground-truth table.
 
@@ -22,10 +22,11 @@ triage quality can be graded.
 Single repo, no database, no external services.
 
 ```
-app/server.mjs          Express server, in-memory todo store, defect injection
+app/server.mjs          Express server, in-memory todo store (no defect logic)
 app/public/index.html   UI (add / toggle / counter)
 tests/todo.spec.ts      ~6 specs
 playwright.config.ts    webServer boots app/server.mjs, 1 retry
+scripts/apply-defect.mjs      applies/restores a named defect
 scripts/condense-report.mjs   report.json -> triage-input.md
 .github/workflows/e2e-triage.yml
 ```
@@ -41,20 +42,24 @@ scripts/condense-report.mjs   report.json -> triage-input.md
 The counter string is computed server-side so a product bug is observable through
 the API as well as the UI.
 
-## Failure switchboard
+## Failure injection
 
-`BREAK` is a comma-separated env var read by **both** `app/server.mjs` and
-`tests/todo.spec.ts`. Empty/unset means everything green.
+`scripts/apply-defect.mjs <names>` rewrites the working tree to introduce a real
+defect; `--reset` restores from `.defect-backup/`. The app and specs hold no
+switchboard, so the code the agent reads carries no marker that the defect was
+planted — the first graded run showed an in-source switchboard misleads the
+agent into blaming the injection branch instead of the actual fault.
 
-| Value | Injected defect | Ground-truth classification |
+| Name | Applied edit | Ground-truth classification |
 |---|---|---|
-| `product-bug` | `summary` counts all todos as done | Product bug, root cause `app/server.mjs` |
+| `product-bug` | `summarize()` counts outstanding todos, wording still "done" | Product bug, root cause `app/server.mjs` |
 | `test-bug` | Spec asserts button label "Add task" (app says "Add todo") | Test bug, app is correct |
 | `flaky` | `GET /api/todos` sleeps random 0-1500ms | Flaky / timing-sensitive; passes on retry |
-| `timeout` | Toggle endpoint never responds | Timeout, hung request, not an assertion failure |
-| `infra` | Server exits 1 during boot | Infra, suite never ran |
+| `timeout` | Toggle mutates state and never responds | Timeout, hung request, not an assertion failure |
+| `infra` | Missing `DATABASE_URL` check exits 1 during boot | Infra, suite never ran |
 
-Values may be combined (`BREAK=product-bug,flaky`).
+Names may be combined (`product-bug,flaky`). Reset uses a file backup rather than
+`git checkout` so it cannot discard unrelated working-tree changes.
 
 ## Pipeline
 
@@ -64,9 +69,11 @@ Triggers: `pull_request`, and `workflow_dispatch` with a `break` string input.
 
 Steps:
 1. Checkout, setup Node, `npm ci`, `npx playwright install --with-deps chromium`.
-2. Run Playwright with JSON reporter to `test-results/report.json`,
-   `continue-on-error: true`, `BREAK` from the dispatch input (empty on PR runs
-   unless the PR itself is broken).
+2. On `workflow_dispatch` with a non-empty `break` input, run
+   `scripts/apply-defect.mjs` to edit the tree. PR runs skip this — a PR breaks
+   things by containing a real defect.
+3. Run Playwright with JSON reporter to `test-results/report.json`,
+   `continue-on-error: true`.
 3. `node scripts/condense-report.mjs` -> `triage-input.md`. Per failure: title,
    spec file and line, error message, code frame, retry outcomes, plus a run-level
    note when zero tests executed (the infra case). Output capped to keep the agent
@@ -101,7 +108,7 @@ built-in alias default may not exist in the resource.
 
 ## Testing
 
-- Local: run `npm test` for each `BREAK` value and confirm the observed failure
+- Local: apply each defect, run `npm test`, and confirm the observed failure
   matches the table, and that `triage-input.md` contains the distinguishing signal.
 - CI: one `workflow_dispatch` run per scenario; compare the agent verdict against
   the ground-truth column.

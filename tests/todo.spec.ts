@@ -1,12 +1,5 @@
 import { test, expect } from '@playwright/test';
 
-const breaks = new Set(
-  (process.env.BREAK ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-);
-
 test.beforeEach(async ({ request, page }) => {
   await request.post('/api/reset');
   await page.goto('/');
@@ -29,8 +22,7 @@ test('adds a todo', async ({ page }) => {
 });
 
 test('add button is labelled correctly', async ({ page }) => {
-  const expected = breaks.has('test-bug') ? 'Add task' : 'Add todo';
-  await expect(page.getByRole('button', { name: expected })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add todo' })).toBeVisible();
 });
 
 test('summary counts only completed todos', async ({ page }) => {

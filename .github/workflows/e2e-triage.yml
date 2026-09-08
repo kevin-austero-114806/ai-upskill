@@ -8,6 +8,7 @@ on:
         description: 'Defects to inject (comma-separated): product-bug, test-bug, flaky, timeout, infra'
         required: false
         default: ''
+        type: string
 
 permissions:
   contents: read
@@ -20,8 +21,6 @@ permissions:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    env:
-      BREAK: ${{ github.event.inputs.break || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +31,12 @@ jobs:
 
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+
+      # workflow_dispatch only: edit the working tree so the failure the agent
+      # triages is plain wrong code, with no defect switchboard in the source.
+      - name: Inject defects
+        if: github.event.inputs.break != ''
+        run: node scripts/apply-defect.mjs "${{ github.event.inputs.break }}"
 
       - name: Run Playwright tests
         id: tests

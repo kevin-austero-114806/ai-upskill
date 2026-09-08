@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node app/server.mjs",
     "test": "playwright test",
-    "condense": "node scripts/condense-report.mjs"
+    "condense": "node scripts/condense-report.mjs",
+    "break": "node scripts/apply-defect.mjs"
   },
   "dependencies": {
     "express": "^4.21.2"

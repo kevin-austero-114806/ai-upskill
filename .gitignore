@@ -3,3 +3,4 @@ test-results/
 playwright-report/
 triage-input.md
 triage-verdict.md
+.defect-backup/
