@@ -96,10 +96,11 @@ jobs:
         run: |
           if [ -s triage-verdict.md ]; then
             cp triage-verdict.md comment-body.md
-            printf '
----
-Triage ran because: %s
-' "$GATE_REASON" >> comment-body.md
+            {
+              echo
+              echo "---"
+              echo "Triage ran because: $GATE_REASON"
+            } >> comment-body.md
           else
             {
               echo "## AI Test Failure Triage — no verdict produced"
