@@ -48,6 +48,10 @@ jobs:
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
+          # Skips the Claude Code GitHub App token exchange, which 401s unless
+          # the App is installed on the repo. Triage only needs to read files
+          # and write a verdict; the PR comment is posted by a later step.
+          github_token: ${{ github.token }}
           use_foundry: "true"
           prompt: |
             Follow the instructions in .github/triage-prompt.md exactly.
