@@ -54,13 +54,13 @@ agent into blaming the injection branch instead of the actual fault.
 |---|---|---|
 | `product-bug` | `summarize()` counts outstanding todos, wording still "done" | Product bug, root cause `app/server.mjs` |
 | `test-bug` | Spec asserts button label "Add task" (app says "Add todo") | Test bug, app is correct |
-| `flaky` | Adds a spec asserting four random values are even | Flaky, or test-bug (invalid assertion); not a product bug |
+| `flaky` | Adds a spec asserting eight random values are even | Flaky, or test-bug (invalid assertion); not a product bug |
 | `timeout` | Toggle mutates state and never responds | Timeout, hung request, not an assertion failure |
 | `infra` | Missing `DATABASE_URL` check exits 1 during boot | Infra, suite never ran |
 
-`flaky` is deliberately nondeterministic: four parity assertions on random values
-fail ~94% of the time per attempt, so ~15 of 16 runs produce failure input and
-the failing assertion varies between attempts. A green run remains a valid
+`flaky` is deliberately nondeterministic: eight parity assertions on random values
+fail ~99.6% of the time per attempt, so nearly every run produces failure input
+and the failing assertion varies between attempts. A green run remains a valid
 outcome, not a broken recipe. Triage fires on a non-zero flaky count as well as
 on outright failure, since Playwright exits 0 when a test fails and then passes
 on retry.

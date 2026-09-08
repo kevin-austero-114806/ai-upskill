@@ -39,6 +39,10 @@ test('generated ids land on even boundaries', async () => {
   expect(sample() % 2).toBe(0);
   expect(sample() % 2).toBe(0);
   expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
 });`,
   },
   timeout: {
