@@ -36,16 +36,17 @@ disturbs your other working-tree changes.
 | *(none)* | — | suite passes |
 | `product-bug` | `summarize()` counts outstanding todos while the wording still says "done" | **product-bug** → `app/server.mjs` |
 | `test-bug` | spec expects the label "Add task"; the app says "Add todo" | **test-bug** → `tests/todo.spec.ts` |
-| `flaky` | adds a test asserting four random numbers are all even | **flaky** (or **test-bug** — see below) |
+| `flaky` | adds a test asserting eight random numbers are all even | **flaky** (or **test-bug** — see below) |
 | `timeout` | toggle mutates state and never sends a response | **timeout / product-bug** (hung request) |
 | `infra` | a missing `DATABASE_URL` check exits 1 on boot | **infra** — suite never ran |
 
 That table is your answer key. Run a scenario, read the agent's verdict, compare.
 
 `flaky` is genuinely nondeterministic — it is simulating real flakiness, after
-all. Four parity assertions on random values fail about 94% of the time per
-attempt, so triage fires on all but roughly one run in sixteen, and the failing
-assertion differs between attempts. Both **flaky** and **test-bug** are
+all. Eight parity assertions on random values fail about 99.6% of the time per
+attempt, so a green run is now rare (it was one in sixteen with four
+assertions, and it duly happened), and the failing assertion differs between
+attempts. Both **flaky** and **test-bug** are
 defensible verdicts here: the outcome is nondeterministic, and the reason is that
 the assertion itself is invalid. What should *not* happen is the agent blaming
 `app/server.mjs`.
