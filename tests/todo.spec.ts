@@ -45,3 +45,15 @@ test('summary survives a reload', async ({ page }) => {
   await page.reload();
   await expect(page.getByTestId('summary')).toHaveText('0 of 1 done');
 });
+
+test('generated ids land on even boundaries', async () => {
+  const sample = () => Math.floor(Math.random() * 1000);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+  expect(sample() % 2).toBe(0);
+});
