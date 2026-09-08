@@ -1,0 +1,1074 @@
+<title>Failure Triage Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Libre+Franklin:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --ground: #eef1f0;
+    --panel: #f7f9f8;
+    --panel-2: #e3e8e6;
+    --ink: #15211f;
+    --ink-2: #40514e;
+    --ink-3: #6d7d7a;
+    --rule: #cbd4d1;
+    --rule-soft: #dde3e1;
+    --accent: #0f5d52;
+    --accent-soft: #d3e4df;
+
+    --c-product: #a63a24;
+    --c-test: #8a6410;
+    --c-flaky: #5c4a9c;
+    --c-infra: #1f6480;
+
+    --display: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --body: "Libre Franklin", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+
+    --max: 1120px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #101817;
+      --panel: #17211f;
+      --panel-2: #1e2a28;
+      --ink: #e8efec;
+      --ink-2: #b3c1bd;
+      --ink-3: #85948f;
+      --rule: #2c3a37;
+      --rule-soft: #223230;
+      --accent: #5fbfae;
+      --accent-soft: #1d3a35;
+
+      --c-product: #e08a72;
+      --c-test: #d6ad52;
+      --c-flaky: #a494e0;
+      --c-infra: #6fb3cf;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #101817;
+    --panel: #17211f;
+    --panel-2: #1e2a28;
+    --ink: #e8efec;
+    --ink-2: #b3c1bd;
+    --ink-3: #85948f;
+    --rule: #2c3a37;
+    --rule-soft: #223230;
+    --accent: #5fbfae;
+    --accent-soft: #1d3a35;
+
+    --c-product: #e08a72;
+    --c-test: #d6ad52;
+    --c-flaky: #a494e0;
+    --c-infra: #6fb3cf;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-snap-type: y proximity; scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #progress {
+    position: fixed;
+    inset: 0 auto auto 0;
+    height: 3px;
+    width: 0;
+    background: var(--accent);
+    z-index: 40;
+    transition: width .25s ease;
+  }
+
+  .slide {
+    scroll-snap-align: start;
+    min-height: 92svh;
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 0;
+    border-bottom: 1px solid var(--rule-soft);
+    padding: 56px 32px 64px;
+  }
+
+  .rail {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .rail b {
+    font-family: var(--display);
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .rail span {
+    writing-mode: vertical-rl;
+    white-space: nowrap;
+  }
+
+  .body-col { min-width: 0; max-width: var(--max); }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(2.6rem, 6.4vw, 4.6rem);
+    line-height: 1.02;
+    letter-spacing: -.02em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(1.7rem, 3.4vw, 2.5rem);
+    line-height: 1.1;
+    letter-spacing: -.015em;
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--body);
+    font-weight: 600;
+    font-size: .95rem;
+    margin: 0 0 6px;
+  }
+  .deck {
+    font-size: 1.06rem;
+    color: var(--ink-2);
+    max-width: 62ch;
+    margin: 0 0 30px;
+  }
+  p { margin: 0 0 14px; max-width: 66ch; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 14px;
+  }
+
+  /* ---------- title slide ---------- */
+  .title-slide { align-content: center; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+    padding: 5px 11px;
+    margin-bottom: 28px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 40px;
+    margin-top: 42px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .meta div { display: flex; flex-direction: column; gap: 3px; }
+  .meta strong { color: var(--ink); font-weight: 500; }
+
+  .verdict-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 30px 0 0;
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 2px;
+    border: 1px solid currentColor;
+  }
+  .chip.product { color: var(--c-product); }
+  .chip.test { color: var(--c-test); }
+  .chip.flaky { color: var(--c-flaky); }
+  .chip.infra { color: var(--c-infra); }
+
+  /* ---------- generic blocks ---------- */
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 26px 34px;
+    align-items: start;
+  }
+  .cols.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+  .note { color: var(--ink-2); font-size: .93rem; margin: 0; }
+
+  .stack { display: flex; flex-direction: column; gap: 20px; }
+
+  .lede-num {
+    font-family: var(--display);
+    font-size: 2.1rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  ul.plain { margin: 0; padding-left: 1.1em; max-width: 64ch; }
+  ul.plain li { margin-bottom: 8px; color: var(--ink-2); }
+  ul.plain li strong { color: var(--ink); font-weight: 600; }
+
+  /* findings: numbered because they are an ordered record of what changed */
+  ol.findings { margin: 0; padding: 0; list-style: none; counter-reset: f; }
+  ol.findings li {
+    counter-increment: f;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 0 16px;
+    padding: 16px 0;
+    border-top: 1px solid var(--rule-soft);
+  }
+  ol.findings li::before {
+    content: counter(f, decimal-leading-zero);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    padding-top: 3px;
+  }
+  ol.findings p { margin: 4px 0 0; color: var(--ink-2); font-size: .95rem; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .86em;
+    background: var(--panel-2);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  pre {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--rule-soft);
+    border-left: 2px solid var(--accent);
+    border-radius: 2px;
+    padding: 16px 18px;
+    margin: 0;
+    overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .cmt { color: var(--ink-3); }
+  .key { color: var(--accent); font-weight: 500; }
+
+  figure { margin: 0; }
+  figure svg {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    color: var(--ink-2);
+  }
+  .fig-scroll { overflow-x: auto; }
+  figcaption {
+    font-size: .88rem;
+    color: var(--ink-3);
+    margin-top: 12px;
+    max-width: 74ch;
+  }
+  .svg-box { fill: var(--panel); stroke: var(--rule); stroke-width: 1.25; }
+  .svg-box-alt { fill: var(--panel-2); stroke: var(--rule); stroke-width: 1.25; }
+  .svg-box-accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  .svg-t { fill: var(--ink); font-family: var(--body); font-size: 13px; font-weight: 600; }
+  .svg-m { fill: var(--ink-3); font-family: var(--mono); font-size: 10.5px; }
+  .svg-l { fill: var(--ink-2); font-family: var(--mono); font-size: 10.5px; }
+  .svg-line { stroke: var(--ink-3); stroke-width: 1.4; fill: none; }
+  .svg-line-accent { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .svg-line-dash { stroke: var(--ink-3); stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .9rem;
+  }
+  .table-wrap { overflow-x: auto; }
+  th, td {
+    text-align: left;
+    padding: 11px 14px 11px 0;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  td.scenario { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td.truth { font-family: var(--mono); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+  td.truth.product { color: var(--c-product); }
+  td.truth.test { color: var(--c-test); }
+  td.truth.flaky { color: var(--c-flaky); }
+  td.truth.infra { color: var(--c-infra); }
+  td.truth.pass { color: var(--ink-3); }
+  td.detail { color: var(--ink-2); min-width: 260px; }
+
+  /* status: state reads at a glance, no card stamping */
+  .status-list { display: flex; flex-direction: column; gap: 0; }
+  .status-list div {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 16px;
+    padding: 12px 0;
+    border-top: 1px solid var(--rule-soft);
+    align-items: baseline;
+  }
+  .state {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .state.built { color: var(--accent); }
+  .state.next { color: var(--c-test); }
+  .state.out { color: var(--ink-3); }
+
+  .callout {
+    border-left: 2px solid var(--accent);
+    padding: 4px 0 4px 18px;
+    margin: 0;
+    max-width: 62ch;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .sample-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 8px;
+  }
+
+  /* ---------- nav ---------- */
+  #nav {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 4px;
+    box-shadow: 0 2px 14px rgb(0 0 0 / .1);
+  }
+  #nav button {
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1;
+    color: var(--ink-2);
+    background: none;
+    border: 0;
+    border-radius: 2px;
+    padding: 7px 10px;
+    cursor: pointer;
+  }
+  #nav button:hover { background: var(--panel-2); color: var(--ink); }
+  #nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #counter {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink-3);
+    padding: 0 8px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 720px) {
+    .slide { grid-template-columns: 1fr; gap: 18px; padding: 40px 20px 52px; }
+    .rail { flex-direction: row; align-items: baseline; gap: 12px; }
+    .rail span { writing-mode: horizontal-tb; }
+  }
+</style>
+
+<div id="progress"></div>
+
+<!-- 1 -->
+<section class="slide title-slide">
+  <div class="rail"><b>01</b><span>Title</span></div>
+  <div class="body-col">
+    <div class="badge"><i class="dot"></i>AI Upskill · Proof of Concept</div>
+    <h1>Failure&nbsp;Triage Assistant</h1>
+    <p class="deck">When the end-to-end suite goes red, an agent reads the failure, reads the
+      source that caused it, and posts a verdict on the pull request: is this a product bug, a
+      test bug, a flake, or infrastructure — and who should look at it next.</p>
+
+    <div class="verdict-strip">
+      <span class="chip product">product-bug</span>
+      <span class="chip test">test-bug</span>
+      <span class="chip flaky">flaky</span>
+      <span class="chip infra">infra</span>
+    </div>
+
+    <div class="meta">
+      <div><span>Presenter</span><strong>Kevin Austero</strong></div>
+      <div><span>Repository</span><strong>kevin-austero-114806/ai-upskill</strong></div>
+      <div><span>Stack</span><strong>GitHub Actions · Playwright · Claude via Foundry</strong></div>
+      <div><span>Status</span><strong>Running POC</strong></div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="rail"><b>02</b><span>The problem</span></div>
+  <div class="body-col">
+    <p class="eyebrow">Why this</p>
+    <h2>A red build is not an answer. It's a question about ownership.</h2>
+    <p class="deck">Every failing end-to-end run starts the same way: someone opens the job,
+      scrolls the log, opens a trace, reads the spec, reads the app code — and only then knows
+      whether to page the feature developer, fix the test, hit retry, or check the environment.
+      That first sort is mechanical, and it is where the wait happens.</p>
+
+    <div class="cols">
+      <div>
+        <span class="lede-num">4</span>
+        <h3>Outcomes that look identical in the log</h3>
+        <p class="note">A wrong assertion, a wrong implementation, a timing race and a server
+          that never booted all surface as the same red X on the same check.</p>
+      </div>
+      <div>
+        <span class="lede-num">~2.5k</span>
+        <h3>Characters of error text per failure</h3>
+        <p class="note">Message, call log, code frame and per-attempt outcomes — before anyone
+          opens the trace viewer or the source file.</p>
+      </div>
+      <div>
+        <span class="lede-num">0</span>
+        <h3>Of that reading is judgment</h3>
+        <p class="note">The reading is retrieval. The judgment is one sentence at the end of it:
+          <em>whose problem is this?</em></p>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:30px">
+      <p><strong>The bet:</strong> classification is a reading task with a small, closed answer
+        set and evidence available in the repository. That is exactly the shape of work an agent
+        with file access can do, and exactly the shape a human should not be doing at 9am.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="rail"><b>03</b><span>What it does</span></div>
+  <div class="body-col">
+    <p class="eyebrow">The product in one pass</p>
+    <h2>Red run in, verdict on the pull request out.</h2>
+    <p class="deck">The pipeline distills the Playwright JSON report into a compact failure
+      brief, hands it to a read-only Claude agent that also opens the spec and the application
+      code, and posts one structured verdict per failure — classification, confidence, suspected
+      <code>file:line</code>, the evidence it relied on, and a single next action.</p>
+
+    <div class="cols two">
+      <div class="stack">
+        <div>
+          <h3>Every verdict must carry</h3>
+          <ul class="plain">
+            <li><strong>Classification</strong> — one of exactly four labels, no free text</li>
+            <li><strong>Confidence</strong> — high, medium or low; low is a legitimate answer</li>
+            <li><strong>Suspected cause</strong> — a real <code>path:line</code> in this repo</li>
+            <li><strong>Evidence</strong> — the error text or code it actually read</li>
+            <li><strong>Next action</strong> — one concrete step for the owner</li>
+          </ul>
+        </div>
+        <div>
+          <h3>What it is not allowed to do</h3>
+          <ul class="plain">
+            <li>Fix anything — tools are <code>Read, Grep, Glob, Write</code>, and the only
+              writable file is the verdict</li>
+            <li>Run the tests — it reasons from the recorded run</li>
+            <li>Decide the build — the job's red or green is set by Playwright alone</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <p class="sample-label">Verdict format — the contract in the prompt</p>
+        <pre><code>## AI Test Failure Triage
+
+<span class="key">**2 failure(s)**</span> — one root cause in app/server.mjs
+
+### 1. summary counts only completed todos
+- <span class="key">Classification:</span> product-bug
+- <span class="key">Confidence:</span> high
+- <span class="key">Suspected cause:</span> `app/server.mjs:14`
+- <span class="key">Evidence:</span> expected "0 of 2 done",
+  received "2 of 2 done"; summarize() counts
+  outstanding todos while the string still
+  says "done"
+- <span class="key">Next action:</span> count `t.done`, not `!t.done`</code></pre>
+        <p class="note" style="margin-top:10px">Illustrative verdict in the required shape, taken
+          from the real condensed report for the <code>product-bug</code> scenario.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="rail"><b>04</b><span>System design</span></div>
+  <div class="body-col">
+    <p class="eyebrow">Architecture</p>
+    <h2>One job, one gate, one writable file.</h2>
+    <p class="deck">Triage is a branch inside the existing end-to-end workflow rather than a
+      service beside it. Nothing new to host, no database, no queue — the pipeline's own
+      artifacts are the interface between each stage.</p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1080 470" role="img" aria-label="The end-to-end workflow runs Playwright, gates on failure or flakiness, condenses the report into triage-input.md, runs a read-only Claude agent via Microsoft Foundry that also reads the repository source, and writes triage-verdict.md which is posted as a pull request comment, a job summary and an artifact; the job's pass or fail status comes from Playwright independently of triage.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <!-- lane labels -->
+          <text class="svg-m" x="20" y="24">TRIGGER</text>
+          <text class="svg-m" x="222" y="24">GITHUB ACTIONS RUNNER</text>
+          <text class="svg-m" x="900" y="24">OUTPUTS</text>
+          <line class="svg-line-dash" x1="20" y1="34" x2="1060" y2="34"></line>
+
+          <!-- 1 trigger -->
+          <rect class="svg-box" x="20" y="182" width="152" height="60" rx="2"></rect>
+          <text class="svg-t" x="96" y="207" text-anchor="middle">Pull request</text>
+          <text class="svg-m" x="96" y="225" text-anchor="middle">or manual dispatch</text>
+
+          <!-- 2 playwright -->
+          <rect class="svg-box" x="212" y="182" width="152" height="60" rx="2"></rect>
+          <text class="svg-t" x="288" y="207" text-anchor="middle">Playwright</text>
+          <text class="svg-m" x="288" y="225" text-anchor="middle">JSON reporter</text>
+          <text class="svg-m" x="288" y="262" text-anchor="middle">continue-on-error</text>
+
+          <!-- 3 gate -->
+          <rect class="svg-box-alt" x="404" y="182" width="152" height="60" rx="2"></rect>
+          <text class="svg-t" x="480" y="207" text-anchor="middle">Triage gate</text>
+          <text class="svg-m" x="480" y="225" text-anchor="middle">failed OR flaky &gt; 0</text>
+
+          <!-- 4 condense -->
+          <rect class="svg-box" x="596" y="182" width="152" height="60" rx="2"></rect>
+          <text class="svg-t" x="672" y="203" text-anchor="middle">condense-</text>
+          <text class="svg-t" x="672" y="219" text-anchor="middle">report.mjs</text>
+          <text class="svg-m" x="672" y="235" text-anchor="middle">capped, no traces</text>
+
+          <!-- 5 agent -->
+          <rect class="svg-box-accent" x="788" y="182" width="152" height="60" rx="2"></rect>
+          <text class="svg-t" x="864" y="203" text-anchor="middle">Triage agent</text>
+          <text class="svg-m" x="864" y="219" text-anchor="middle">claude-code-action</text>
+          <text class="svg-m" x="864" y="235" text-anchor="middle">max-turns 20</text>
+
+          <!-- main arrows -->
+          <line class="svg-line" x1="172" y1="212" x2="206" y2="212" marker-end="url(#ar)"></line>
+          <line class="svg-line" x1="364" y1="212" x2="398" y2="212" marker-end="url(#ar)"></line>
+          <line class="svg-line" x1="556" y1="212" x2="590" y2="212" marker-end="url(#ar)"></line>
+          <line class="svg-line-accent" x1="748" y1="212" x2="782" y2="212" marker-end="url(#ar)"></line>
+          <text class="svg-l" x="480" y="172" text-anchor="middle">report.json</text>
+          <text class="svg-l" x="765" y="172" text-anchor="middle">triage-input.md</text>
+
+          <!-- model provider above agent -->
+          <rect class="svg-box" x="788" y="62" width="152" height="54" rx="2"></rect>
+          <text class="svg-t" x="864" y="83" text-anchor="middle">Microsoft Foundry</text>
+          <text class="svg-m" x="864" y="101" text-anchor="middle">pinned Claude deployment</text>
+          <line class="svg-line-accent" x1="864" y1="116" x2="864" y2="176" marker-end="url(#ar)"></line>
+          <text class="svg-l" x="874" y="152">API key</text>
+
+          <!-- repo source below agent -->
+          <rect class="svg-box" x="788" y="316" width="152" height="54" rx="2"></rect>
+          <text class="svg-t" x="864" y="337" text-anchor="middle">Repository source</text>
+          <text class="svg-m" x="864" y="355" text-anchor="middle">app/ · tests/</text>
+          <line class="svg-line-accent" x1="864" y1="316" x2="864" y2="248" marker-end="url(#ar)"></line>
+          <text class="svg-l" x="874" y="286">Read · Grep</text>
+
+          <!-- verdict file -->
+          <rect class="svg-box-accent" x="980" y="182" width="80" height="60" rx="2"></rect>
+          <text class="svg-t" x="1020" y="205" text-anchor="middle" style="font-size:11.5px">triage-</text>
+          <text class="svg-t" x="1020" y="221" text-anchor="middle" style="font-size:11.5px">verdict.md</text>
+          <line class="svg-line-accent" x1="940" y1="212" x2="974" y2="212" marker-end="url(#ar)"></line>
+          <text class="svg-l" x="957" y="172" text-anchor="middle">Write</text>
+
+          <!-- outputs fan -->
+          <text class="svg-l" x="1020" y="270" text-anchor="middle">PR comment</text>
+          <text class="svg-l" x="1020" y="288" text-anchor="middle">job summary</text>
+          <text class="svg-l" x="1020" y="306" text-anchor="middle">7-day artifact</text>
+          <line class="svg-line" x1="1020" y1="242" x2="1020" y2="256" marker-end="url(#ar)"></line>
+
+          <!-- gate short-circuit -->
+          <line class="svg-line-dash" x1="480" y1="242" x2="480" y2="392" marker-end="url(#ar)"></line>
+          <text class="svg-l" x="490" y="300">clean run:</text>
+          <text class="svg-l" x="490" y="316">no agent call</text>
+
+          <!-- independent job status -->
+          <rect class="svg-box-alt" x="212" y="392" width="344" height="48" rx="2"></rect>
+          <text class="svg-t" x="384" y="412" text-anchor="middle">Job status — set by the test result alone</text>
+          <text class="svg-m" x="384" y="429" text-anchor="middle">a triage failure never turns a red run green, or a green run red</text>
+          <line class="svg-line-dash" x1="288" y1="242" x2="288" y2="386" marker-end="url(#ar)"></line>
+        </svg>
+      </div>
+      <figcaption>The agent sits on a branch of the existing job. Files are the contract between
+        stages — <code>report.json</code> → <code>triage-input.md</code> →
+        <code>triage-verdict.md</code> — so each stage is runnable and inspectable on its own,
+        and the build's verdict on the code stays independent of the agent's verdict on the
+        failure.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="rail"><b>05</b><span>How we grade it</span></div>
+  <div class="body-col">
+    <p class="eyebrow">Evaluation harness</p>
+    <h2>The app exists to be broken in known ways.</h2>
+    <p class="deck">An agent that writes confident triage is worthless unless you can check it.
+      So the repository ships a defect injector: it edits the working tree to plant one real,
+      named defect whose correct classification is written down in advance. Run a scenario, read
+      the verdict, compare it to the answer key.</p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1000 292" role="img" aria-label="apply-defect.mjs plants a named defect in the working tree, the Playwright run fails, the agent produces a verdict, and the verdict is graded against a ground-truth answer key; disagreements feed a revision of the triage prompt, which is the loop's only tuning knob.">
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <!-- ground truth -->
+          <rect class="svg-box-alt" x="700" y="24" width="200" height="48" rx="2"></rect>
+          <text class="svg-t" x="800" y="44" text-anchor="middle">Ground-truth answer key</text>
+          <text class="svg-m" x="800" y="61" text-anchor="middle">one correct verdict per scenario</text>
+
+          <!-- row -->
+          <rect class="svg-box" x="20" y="112" width="200" height="58" rx="2"></rect>
+          <text class="svg-t" x="120" y="136" text-anchor="middle">apply-defect.mjs</text>
+          <text class="svg-m" x="120" y="154" text-anchor="middle">plants one named defect</text>
+
+          <rect class="svg-box" x="253" y="112" width="200" height="58" rx="2"></rect>
+          <text class="svg-t" x="353" y="136" text-anchor="middle">Playwright run</text>
+          <text class="svg-m" x="353" y="154" text-anchor="middle">fails, or passes on retry</text>
+
+          <rect class="svg-box-accent" x="486" y="112" width="200" height="58" rx="2"></rect>
+          <text class="svg-t" x="586" y="136" text-anchor="middle">Agent verdict</text>
+          <text class="svg-m" x="586" y="154" text-anchor="middle">label · confidence · file:line</text>
+
+          <rect class="svg-box" x="719" y="112" width="200" height="58" rx="2"></rect>
+          <text class="svg-t" x="819" y="136" text-anchor="middle">Grade</text>
+          <text class="svg-m" x="819" y="154" text-anchor="middle">agree / disagree, and why</text>
+
+          <line class="svg-line" x1="220" y1="141" x2="247" y2="141" marker-end="url(#ar2)"></line>
+          <line class="svg-line" x1="453" y1="141" x2="480" y2="141" marker-end="url(#ar2)"></line>
+          <line class="svg-line" x1="686" y1="141" x2="713" y2="141" marker-end="url(#ar2)"></line>
+          <line class="svg-line" x1="800" y1="72" x2="800" y2="106" marker-end="url(#ar2)"></line>
+
+          <!-- return loop -->
+          <polyline class="svg-line-accent" points="819,170 819,238 120,238 120,206" marker-end="url(#ar2)"></polyline>
+          <text class="svg-l" x="470" y="230" text-anchor="middle">disagreement → revise .github/triage-prompt.md, re-run the same scenario</text>
+          <text class="svg-m" x="120" y="196" text-anchor="middle">reset restores from a file backup</text>
+        </svg>
+      </div>
+      <figcaption>The prompt is the only tuning knob in the loop, and the loop is cheap: a
+        scenario can be replayed locally against a saved <code>triage-input.md</code> without
+        spending a CI run.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <div class="rail"><b>06</b><span>Answer key</span></div>
+  <div class="body-col">
+    <p class="eyebrow">Scenarios</p>
+    <h2>Five defects, five different right answers.</h2>
+    <p class="deck">Each one is a plausible real mistake, not a marker: the injector rewrites the
+      source so the code the agent reads carries no sign that anything was planted. Names combine,
+      so a run can present a product bug and a flake at once.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>What the injector changes</th>
+            <th>Correct verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="scenario">product-bug</td>
+            <td class="detail"><code>summarize()</code> counts outstanding todos while the string
+              still reads “done”</td>
+            <td class="truth product">product-bug<br><span class="svg-m">app/server.mjs</span></td>
+          </tr>
+          <tr>
+            <td class="scenario">test-bug</td>
+            <td class="detail">The spec asserts a button labelled “Add task”; the application
+              correctly says “Add todo”</td>
+            <td class="truth test">test-bug<br><span class="svg-m">tests/todo.spec.ts</span></td>
+          </tr>
+          <tr>
+            <td class="scenario">flaky</td>
+            <td class="detail"><code>GET /api/todos</code> sleeps 0–1500&nbsp;ms against a
+              700&nbsp;ms assertion budget</td>
+            <td class="truth flaky">flaky<br><span class="svg-m">passes on retry</span></td>
+          </tr>
+          <tr>
+            <td class="scenario">timeout</td>
+            <td class="detail">Toggle mutates state and never sends a response — the request
+              hangs rather than asserting wrongly</td>
+            <td class="truth product">product-bug<br><span class="svg-m">hung request</span></td>
+          </tr>
+          <tr>
+            <td class="scenario">infra</td>
+            <td class="detail">A missing <code>DATABASE_URL</code> check exits 1 during boot, so
+              no test ever runs</td>
+            <td class="truth infra">infra<br><span class="svg-m">suite never ran</span></td>
+          </tr>
+          <tr>
+            <td class="scenario">— none —</td>
+            <td class="detail">Clean tree: the suite is green and the gate never calls the
+              agent</td>
+            <td class="truth pass">no triage</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note" style="margin-top:22px; max-width:70ch"><strong>Known limitation:</strong> the
+      recipes still live in <code>scripts/apply-defect.mjs</code>, so an agent that went looking
+      could read the answers. Nothing points it there — the failing code explains itself — but a
+      leak-proof evaluation means committing defects on scenario branches instead.</p>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="rail"><b>07</b><span>The hard case</span></div>
+  <div class="body-col">
+    <p class="eyebrow">Why classification is not pattern-matching</p>
+    <h2>The same failure, one label apart.</h2>
+    <p class="deck">One test in the suite asserts against a deliberately tight 700&nbsp;ms budget.
+      Under the <code>flaky</code> scenario it fails on timing and passes on retry. Under the
+      <code>product-bug</code> scenario it fails at the same line — but on the value, immediately,
+      every attempt. A triage agent that reads “tight timeout” and stops is wrong half the time.</p>
+
+    <div class="cols two">
+      <div>
+        <p class="sample-label">Condensed input · product-bug run</p>
+        <pre><code><span class="cmt">## summary refreshes promptly after a reload</span>
+
+- File: `todo.spec.ts:52`
+- Status: <span class="key">unexpected</span> (2 attempts)
+- Attempt outcomes: failed in 1596ms,
+  <span class="key">failed</span> in 3139ms
+
+Expected: "0 of 1 done"
+Received: <span class="key">"1 of 1 done"</span>
+Timeout:  700ms</code></pre>
+        <p class="note" style="margin-top:10px">Wrong <em>value</em>, failed on both attempts —
+          the timeout never expired. <span style="color:var(--c-product);font-family:var(--mono);font-size:12px">product-bug</span></p>
+      </div>
+      <div>
+        <p class="sample-label">Condensed input · flaky run (illustrative)</p>
+        <pre><code><span class="cmt">## summary refreshes promptly after a reload</span>
+
+- File: `todo.spec.ts:52`
+- Status: <span class="key">flaky</span> (2 attempts)
+- Attempt outcomes: failed in 812ms,
+  <span class="key">passed</span> in 240ms
+
+Expected: "0 of 1 done"
+Received: <span class="key">&lt;element not resolved&gt;</span>
+Timeout:  700ms</code></pre>
+        <p class="note" style="margin-top:10px">Budget exceeded, then green on retry — variable
+          latency, no defect. <span style="color:var(--c-flaky);font-family:var(--mono);font-size:12px">flaky</span></p>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:28px">
+      <p>This is why the condensed brief carries <strong>per-attempt outcomes</strong> and the
+        <strong>received value</strong>, not just the last error string — and why the prompt names
+        the evidence that distinguishes a flake: <em>passed on a retry, or an unusually tight
+        timeout against variable latency</em>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="rail"><b>08</b><span>What we learned</span></div>
+  <div class="body-col">
+    <p class="eyebrow">Findings, in the order they forced a change</p>
+    <h2>Every one of these was a bug in the harness, not the model.</h2>
+
+    <ol class="findings">
+      <li>
+        <div>
+          <h3>An injection seam in the source misleads the agent</h3>
+          <p>The first graded run put the defect behind an environment-variable branch in
+            <code>app/server.mjs</code>. The agent dutifully blamed the branch — the most
+            suspicious thing on the page — instead of the fault. The injector now rewrites the
+            code so the failure looks like an ordinary mistake. <strong>Give an agent the
+            artifact a human would get, not a staged one.</strong></p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Condense the report; don't hand over the raw JSON</h3>
+          <p><code>condense-report.mjs</code> distills the reporter output to titles,
+            <code>file:line</code>, error text capped at 2500 characters, code frames capped at
+            1200, and attempt outcomes. Small input, higher signal, bounded cost — and the brief
+            is readable by the human who gets paged anyway.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Triage must never mask the test result</h3>
+          <p>The agent step is <code>continue-on-error</code>, the job fails on red regardless,
+            and when no verdict is produced the comment falls back to the raw failure brief plus
+            diagnostics. A silent agent degrades to today's workflow; it never blocks or
+            green-lights a build.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>A green run can still need triage</h3>
+          <p>Playwright exits 0 when a test fails and then passes on retry, so flakes hide behind
+            a passing check. The gate reads <code>stats.flaky</code> from the report and triages
+            those too — that signal is exactly the one nobody chases.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Model routing is an operational detail with teeth</h3>
+          <p>Running Claude through Microsoft Foundry means the deployment name must be pinned:
+            the <code>opus</code>/<code>sonnet</code> aliases resolve to a default deployment that
+            may not exist in the resource, and there is no startup check — the run fails on the
+            first request. Passing the workflow's own <code>github_token</code> also skips a
+            GitHub App token exchange that otherwise 401s.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="rail"><b>09</b><span>Guardrails</span></div>
+  <div class="body-col">
+    <p class="eyebrow">Cost, blast radius, trust</p>
+    <h2>Bounded by construction, not by good behaviour.</h2>
+    <p class="deck">The limits below are enforced by the workflow and the tool allowlist, so they
+      hold whatever the model decides to do on a given run.</p>
+
+    <div class="cols">
+      <div>
+        <h3>Runs only when there's something to triage</h3>
+        <p class="note">Green, non-flaky runs never reach the agent step. Cost tracks failures,
+          not commits.</p>
+      </div>
+      <div>
+        <h3>Read-only, with one exception</h3>
+        <p class="note"><code>--allowedTools Read,Grep,Glob,Write</code>, and the prompt permits
+          writing exactly one file: <code>triage-verdict.md</code>.</p>
+      </div>
+      <div>
+        <h3>Bounded turns and bounded input</h3>
+        <p class="note"><code>--max-turns 20</code> against a capped brief — a runaway loop ends
+          the step rather than the budget.</p>
+      </div>
+      <div>
+        <h3>No new infrastructure</h3>
+        <p class="note">No service, database or queue. One API key and two variables in repository
+          settings.</p>
+      </div>
+      <div>
+        <h3>Advice, never action</h3>
+        <p class="note">It cannot commit, push, retry, close or merge. A wrong verdict costs a
+          reader ten seconds — it does not touch the code.</p>
+      </div>
+      <div>
+        <h3>Auditable after the fact</h3>
+        <p class="note">Brief, verdict, report and traces upload as artifacts for seven days, so
+          any verdict can be re-examined against what the agent was actually given.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <div class="rail"><b>10</b><span>Status</span></div>
+  <div class="body-col">
+    <p class="eyebrow">Where the POC stands today</p>
+    <h2>Built, running, and honest about its edges.</h2>
+
+    <div class="status-list">
+      <div><span class="state built">Built</span><span>Breakable Node + Express app, six-spec
+        Playwright suite, and a <code>webServer</code>-backed config with one retry.</span></div>
+      <div><span class="state built">Built</span><span>Defect injector with five scenarios,
+        combinable, reversible from a file backup that can't discard unrelated working-tree
+        changes.</span></div>
+      <div><span class="state built">Built</span><span>Report condenser tolerant of a missing or
+        malformed report — the infra case, where no report exists at all.</span></div>
+      <div><span class="state built">Built</span><span>CI workflow with the triage gate, the
+        read-only agent on Claude via Foundry, PR and commit comments, job summary, and artifact
+        upload.</span></div>
+      <div><span class="state built">Built</span><span>The triage prompt: four-label taxonomy,
+        required verdict schema, evidence rules, and an explicit licence to answer with low
+        confidence.</span></div>
+      <div><span class="state next">Next</span><span>Commit defects on scenario branches so the
+        answer key can't be read from the repository, then record agreement rate per scenario
+        across prompt revisions.</span></div>
+      <div><span class="state next">Next</span><span>Point the harness at a real product suite and
+        grade the verdicts against what the owning team concluded.</span></div>
+      <div><span class="state next">Next</span><span>Route by verdict: open an issue for a
+        product bug, quarantine a flake, page platform on infra.</span></div>
+      <div><span class="state out">Out of scope</span><span>Auto-fix pull requests, multi-browser
+        matrices, persistence, authentication. The agent explains failures; people decide.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <div class="rail"><b>11</b><span>The ask</span></div>
+  <div class="body-col">
+    <p class="eyebrow">Closing</p>
+    <h2>Put it on one real suite and measure the agreement.</h2>
+    <p class="deck">The harness works and it is graded against a written answer key. What it
+      hasn't been asked yet is the only question that matters to a team: on our own end-to-end
+      failures, how often does the verdict match what the engineer concluded an hour later?</p>
+
+    <div class="cols two" style="margin-top:8px">
+      <div>
+        <h3>What I need</h3>
+        <ul class="plain">
+          <li>One product repository with a flaky-enough end-to-end suite, in shadow mode — the
+            agent comments, nobody is required to act on it</li>
+          <li>A Foundry deployment and key for that repository</li>
+          <li>Four weeks of failures, and each owning engineer's actual conclusion recorded
+            alongside the verdict</li>
+        </ul>
+      </div>
+      <div>
+        <h3>What that buys</h3>
+        <ul class="plain">
+          <li>An <strong>agreement rate per class</strong> — the number that decides whether this
+            ships or stops</li>
+          <li>A measured read on triage time saved per red build</li>
+          <li>A prompt tuned on real failures rather than five planted ones</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="meta" style="margin-top:44px">
+      <div><span>Repository</span><strong>kevin-austero-114806/ai-upskill</strong></div>
+      <div><span>Try it</span><strong>npm run break product-bug &amp;&amp; npm test</strong></div>
+      <div><span>Prompt</span><strong>.github/triage-prompt.md</strong></div>
+    </div>
+  </div>
+</section>
+
+<nav id="nav" aria-label="Slide navigation">
+  <button type="button" id="prev" aria-label="Previous slide">&larr;</button>
+  <span id="counter">01 / 11</span>
+  <button type="button" id="next" aria-label="Next slide">&rarr;</button>
+</nav>
+
+<script>
+  (function () {
+    var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+    var counter = document.getElementById('counter');
+    var progress = document.getElementById('progress');
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+
+    function current() {
+      var mid = window.scrollY + window.innerHeight * 0.35;
+      var idx = 0;
+      for (var i = 0; i < slides.length; i++) {
+        if (slides[i].offsetTop <= mid) idx = i;
+      }
+      return idx;
+    }
+
+    function paint() {
+      var i = current();
+      counter.textContent = pad(i + 1) + ' / ' + pad(slides.length);
+      progress.style.width = ((i + 1) / slides.length * 100) + '%';
+    }
+
+    function go(delta) {
+      var target = Math.min(slides.length - 1, Math.max(0, current() + delta));
+      window.scrollTo({ top: slides[target].offsetTop, behavior: 'smooth' });
+    }
+
+    document.getElementById('next').addEventListener('click', function () { go(1); });
+    document.getElementById('prev').addEventListener('click', function () { go(-1); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(1); }
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(-1); }
+      else if (e.key === 'Home') { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      else if (e.key === 'End') { e.preventDefault(); window.scrollTo({ top: slides[slides.length - 1].offsetTop, behavior: 'smooth' }); }
+    });
+
+    var queued = false;
+    window.addEventListener('scroll', function () {
+      if (queued) return;
+      queued = true;
+      window.requestAnimationFrame(function () { queued = false; paint(); });
+    }, { passive: true });
+
+    paint();
+  })();
+</script>
