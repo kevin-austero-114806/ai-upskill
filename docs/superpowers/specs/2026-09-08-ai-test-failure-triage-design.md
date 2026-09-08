@@ -79,12 +79,15 @@ Steps:
    otherwise `$GITHUB_STEP_SUMMARY`.
 5. Always upload `test-results/` (report, traces) as an artifact.
 
-Permissions: `contents: read`, `pull-requests: write`, `actions: read`.
+Permissions: `contents: read`, `pull-requests: write`, `actions: read`,
+`id-token: write`. The last is required by `claude-code-action` itself — it
+exchanges an OIDC token for its GitHub App token — independent of how the model
+provider is authenticated.
 
 The agent authenticates to Claude through Microsoft Foundry with an API key
 (`use_foundry: true`, `CLAUDE_CODE_USE_FOUNDRY=1`, `ANTHROPIC_FOUNDRY_API_KEY`
-secret, `ANTHROPIC_FOUNDRY_RESOURCE` variable). No Azure OIDC, so no
-`id-token: write`. The model must be pinned to an existing Foundry deployment
+secret, `ANTHROPIC_FOUNDRY_RESOURCE` variable). No Azure OIDC is involved. The
+model must be pinned to an existing Foundry deployment
 via the `CLAUDE_MODEL` variable — Foundry has no startup model check and the
 built-in alias default may not exist in the resource.
 
