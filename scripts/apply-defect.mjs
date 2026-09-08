@@ -77,7 +77,10 @@ for (const name of args) {
     console.error(`unknown defect "${name}" — expected one of: ${Object.keys(RECIPES).join(', ')}`);
     process.exit(1);
   }
-  const source = readFileSync(recipe.file, 'utf8');
+  const original = readFileSync(recipe.file, 'utf8');
+  // Recipes are written with LF; a git checkout on Windows can hand us CRLF.
+  const crlf = /\r\n/.test(original);
+  const source = crlf ? original.split('\r\n').join('\n') : original;
   if (!source.includes(recipe.find)) {
     console.error(
       `cannot apply "${name}": ${recipe.file} does not contain the expected text. ` +
@@ -88,8 +91,9 @@ for (const name of args) {
   const backup = join(BACKUP_DIR, recipe.file);
   if (!existsSync(backup)) {
     mkdirSync(dirname(backup), { recursive: true });
-    writeFileSync(backup, source);
+    writeFileSync(backup, original);
   }
-  writeFileSync(recipe.file, source.replace(recipe.find, recipe.replace));
+  const patched = source.replace(recipe.find, recipe.replace);
+  writeFileSync(recipe.file, crlf ? patched.split('\n').join('\r\n') : patched);
   console.log(`applied ${name} to ${recipe.file}`);
 }
