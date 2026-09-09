@@ -40,6 +40,11 @@ app.post('/api/reset', (_req, res) => {
   res.json({ ok: true });
 });
 
+if (!process.env.DATABASE_URL) {
+  console.error('FATAL: DATABASE_URL is not configured');
+  process.exit(1);
+}
+
 const port = Number(process.env.PORT ?? 3000);
 app.listen(port, () => {
   console.log(`todo app listening on http://localhost:${port}`);
